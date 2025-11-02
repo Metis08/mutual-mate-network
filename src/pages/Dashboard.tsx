@@ -5,7 +5,8 @@ import { UserCard } from '@/components/UserCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogOut, Users, UserPlus } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { LogOut, Users, UserPlus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface Profile {
@@ -216,80 +217,88 @@ const Dashboard = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-secondary">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-background transition-colors">
+        <div className="text-center animate-fade-in">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto glow-effect"></div>
+          <p className="mt-4 text-muted-foreground">loading vibes...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-secondary">
-      <header className="bg-card border-b border-border sticky top-0 z-10 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-                <Users className="w-6 h-6 text-primary-foreground" />
+    <div className="min-h-screen bg-background p-4 transition-colors duration-300">
+      <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
+        {/* Header */}
+        <Card className="glass-card shadow-card interactive-scale">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center glow-effect">
+                  <Sparkles className="w-7 h-7 text-primary-foreground" />
+                </div>
+                <div>
+                  <CardTitle className="text-3xl font-bold gradient-text">
+                    vibes & connections
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    hey {profile?.name} ✨
+                  </p>
+                </div>
               </div>
-              <h1 className="text-xl font-bold text-foreground">Social Network</h1>
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <Button onClick={signOut} variant="outline" size="sm" className="interactive-scale">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  peace out
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground hidden sm:inline">
-                Welcome, <span className="font-semibold text-foreground">{profile?.name}</span>
-              </span>
-              <Button variant="outline" size="sm" onClick={signOut}>
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+          </CardHeader>
+        </Card>
 
-      <main className="container mx-auto px-4 py-8 max-w-6xl">
-        <Tabs defaultValue="suggestions" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-md mx-auto">
-            <TabsTrigger value="suggestions" className="flex items-center gap-2">
-              <UserPlus className="w-4 h-4" />
-              Suggestions
+        {/* Main Content */}
+        <Tabs defaultValue="suggestions" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 glass-card p-1">
+            <TabsTrigger value="suggestions" className="interactive-scale data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:text-primary-foreground">
+              <UserPlus className="w-4 h-4 mr-2" />
+              for you ({suggestions.length})
             </TabsTrigger>
-            <TabsTrigger value="friends" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              Friends
+            <TabsTrigger value="friends" className="interactive-scale data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:text-primary-foreground">
+              <Users className="w-4 h-4 mr-2" />
+              squad ({friends.length})
             </TabsTrigger>
-            <TabsTrigger value="all" className="flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              All Users
+            <TabsTrigger value="all" className="interactive-scale data-[state=active]:bg-gradient-to-r data-[state=active]:from-primary data-[state=active]:to-accent data-[state=active]:text-primary-foreground">
+              <Users className="w-4 h-4 mr-2" />
+              everyone ({allUsers.length})
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="suggestions" className="space-y-4">
-            <Card>
+            <Card className="glass-card shadow-card">
               <CardHeader>
-                <CardTitle>Friend Suggestions</CardTitle>
+                <CardTitle className="text-xl">✨ suggested connections</CardTitle>
                 <CardDescription>
-                  People you may know based on mutual friends
+                  people with mutual vibes
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {suggestions.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    No suggestions available. Add some friends to get personalized suggestions!
+                  <p className="text-muted-foreground col-span-full text-center py-12">
+                    no suggestions rn. start connecting with people! 🚀
                   </p>
                 ) : (
                   suggestions.map(suggestion => (
-                    <UserCard
-                      key={suggestion.id}
-                      id={suggestion.user_id}
-                      name={suggestion.name}
-                      email={suggestion.email}
-                      mutualFriends={suggestion.mutualFriends}
-                      onAddFriend={() => addFriend(suggestion.user_id)}
-                      loading={actionLoading === suggestion.user_id}
-                    />
+                    <div key={suggestion.id} className="animate-scale-in">
+                      <UserCard
+                        id={suggestion.user_id}
+                        name={suggestion.name}
+                        email={suggestion.email}
+                        mutualFriends={suggestion.mutualFriends}
+                        onAddFriend={() => addFriend(suggestion.user_id)}
+                        loading={actionLoading === suggestion.user_id}
+                      />
+                    </div>
                   ))
                 )}
               </CardContent>
@@ -297,29 +306,30 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="friends" className="space-y-4">
-            <Card>
+            <Card className="glass-card shadow-card">
               <CardHeader>
-                <CardTitle>Your Friends ({friends.length})</CardTitle>
+                <CardTitle className="text-xl">💫 your squad</CardTitle>
                 <CardDescription>
-                  People you're connected with
+                  the real ones
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {friends.length === 0 ? (
-                  <p className="text-center text-muted-foreground py-8">
-                    You haven't added any friends yet. Check out the All Users tab!
+                  <p className="text-muted-foreground col-span-full text-center py-12">
+                    no friends yet? let's change that! check out everyone tab 👀
                   </p>
                 ) : (
                   friends.map(friend => (
-                    <UserCard
-                      key={friend.id}
-                      id={friend.user_id}
-                      name={friend.name}
-                      email={friend.email}
-                      isFriend
-                      onRemoveFriend={() => removeFriend(friend.user_id)}
-                      loading={actionLoading === friend.user_id}
-                    />
+                    <div key={friend.id} className="animate-scale-in">
+                      <UserCard
+                        id={friend.user_id}
+                        name={friend.name}
+                        email={friend.email}
+                        isFriend
+                        onRemoveFriend={() => removeFriend(friend.user_id)}
+                        loading={actionLoading === friend.user_id}
+                      />
+                    </div>
                   ))
                 )}
               </CardContent>
@@ -327,34 +337,35 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="all" className="space-y-4">
-            <Card>
+            <Card className="glass-card shadow-card">
               <CardHeader>
-                <CardTitle>All Users ({allUsers.length})</CardTitle>
+                <CardTitle className="text-xl">🌐 everyone</CardTitle>
                 <CardDescription>
-                  Browse all members of the network
+                  explore & connect
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {allUsers.map(otherUser => {
                   const isFriend = friends.some(f => f.user_id === otherUser.user_id);
                   return (
-                    <UserCard
-                      key={otherUser.id}
-                      id={otherUser.user_id}
-                      name={otherUser.name}
-                      email={otherUser.email}
-                      isFriend={isFriend}
-                      onAddFriend={() => addFriend(otherUser.user_id)}
-                      onRemoveFriend={() => removeFriend(otherUser.user_id)}
-                      loading={actionLoading === otherUser.user_id}
-                    />
+                    <div key={otherUser.id} className="animate-scale-in">
+                      <UserCard
+                        id={otherUser.user_id}
+                        name={otherUser.name}
+                        email={otherUser.email}
+                        isFriend={isFriend}
+                        onAddFriend={() => addFriend(otherUser.user_id)}
+                        onRemoveFriend={() => removeFriend(otherUser.user_id)}
+                        loading={actionLoading === otherUser.user_id}
+                      />
+                    </div>
                   );
                 })}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-      </main>
+      </div>
     </div>
   );
 };

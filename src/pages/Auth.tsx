@@ -81,19 +81,19 @@ const Auth = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-secondary px-4">
-      <Card className="w-full max-w-md shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-background px-4 transition-colors duration-300">
+      <Card className="w-full max-w-md glass-card shadow-glow animate-scale-in">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center glow-effect">
             <Users className="w-8 h-8 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl font-bold">
-            {isSignUp ? 'Create Account' : 'Welcome Back'}
+          <CardTitle className="text-3xl font-bold gradient-text">
+            {isSignUp ? 'join the vibe' : 'welcome back'}
           </CardTitle>
           <CardDescription>
             {isSignUp 
-              ? 'Join our social network and connect with friends' 
-              : 'Sign in to see your friends and suggestions'}
+              ? 'connect & discover your people ✨' 
+              : 'ready to see what\'s good? 🚀'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -135,21 +135,21 @@ const Auth = () => {
             </div>
             <Button 
               type="submit" 
-              className="w-full"
+              className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 interactive-scale"
               disabled={loading}
             >
-              {loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}
+              {loading ? 'loading...' : (isSignUp ? 'let\'s go ✨' : 'sign in 🚀')}
             </Button>
           </form>
           <div className="mt-4 text-center">
             <button
               type="button"
               onClick={() => setIsSignUp(!isSignUp)}
-              className="text-sm text-primary hover:underline"
+              className="text-sm text-primary hover:text-accent transition-colors"
             >
               {isSignUp 
-                ? 'Already have an account? Sign in' 
-                : "Don't have an account? Sign up"}
+                ? 'already have an account? sign in' 
+                : 'new here? join us'}
             </button>
           </div>
         </CardContent>

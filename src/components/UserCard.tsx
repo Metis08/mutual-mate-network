@@ -1,6 +1,7 @@
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { UserPlus, UserMinus, Users } from 'lucide-react';
 
 interface UserCardProps {
@@ -33,46 +34,52 @@ export const UserCard = ({
   };
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-4">
-        <Avatar className="h-12 w-12 bg-primary/10">
-          <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-            {getInitials(name)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-foreground truncate">{name}</h3>
-          <p className="text-sm text-muted-foreground truncate">{email}</p>
-          {mutualFriends !== undefined && mutualFriends > 0 && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
-              <Users className="w-3 h-3" />
-              <span>{mutualFriends} mutual friend{mutualFriends > 1 ? 's' : ''}</span>
-            </div>
-          )}
+    <Card className="glass-card overflow-hidden hover:shadow-glow transition-all duration-300 interactive-scale group">
+      <CardHeader className="space-y-4">
+        <div className="flex items-center gap-3">
+          <Avatar className="w-14 h-14 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
+            <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold">
+              {getInitials(name)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-bold text-lg truncate">{name}</h3>
+            <p className="text-xs text-muted-foreground truncate">{email}</p>
+          </div>
         </div>
+      </CardHeader>
+      
+      {mutualFriends !== undefined && mutualFriends > 0 && (
+        <CardContent className="pb-3">
+          <Badge variant="secondary" className="w-full justify-center gap-2 py-2">
+            <Users className="w-3 h-3" />
+            <span>{mutualFriends} mutual vibe{mutualFriends !== 1 ? 's' : ''}</span>
+          </Badge>
+        </CardContent>
+      )}
+
+      <CardFooter>
         {isFriend ? (
           <Button
-            variant="outline"
-            size="sm"
             onClick={onRemoveFriend}
+            variant="outline"
+            className="w-full interactive-scale"
             disabled={loading}
-            className="shrink-0"
           >
             <UserMinus className="w-4 h-4 mr-2" />
-            Unfriend
+            unfriend
           </Button>
         ) : (
           <Button
-            size="sm"
             onClick={onAddFriend}
+            className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 interactive-scale"
             disabled={loading}
-            className="shrink-0"
           >
             <UserPlus className="w-4 h-4 mr-2" />
-            Add Friend
+            add friend
           </Button>
         )}
-      </div>
+      </CardFooter>
     </Card>
   );
 };
