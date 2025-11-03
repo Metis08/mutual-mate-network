@@ -1,32 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
-// @ts-ignore - react-force-graph doesn't have proper TS types
-import ForceGraph2D from 'react-force-graph';
+import * as d3 from 'd3-force';
 
 interface Node {
   id: string;
   name: string;
-  color?: string;
-  size?: number;
+  x?: number;
+  y?: number;
+  vx?: number;
+  vy?: number;
+  color: string;
+  size: number;
 }
 
 interface Link {
-  source: string;
-  target: string;
-  color?: string;
-  width?: number;
-}
-
-interface GraphData {
-  nodes: Node[];
-  links: Link[];
-}
-
-interface TraversalStep {
-  type: 'visit' | 'check' | 'found' | 'complete';
-  nodeId?: string;
-  fromNodeId?: string;
-  toNodeId?: string;
-  message: string;
+  source: string | Node;
+  target: string | Node;
 }
 
 interface GraphVisualizationProps {
@@ -44,38 +32,40 @@ export const GraphVisualization = ({
   friendships,
   isAnimating,
 }: GraphVisualizationProps) => {
-  const graphRef = useRef<any>();
-  const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [links, setLinks] = useState<Link[]>([]);
   const [highlightNodes, setHighlightNodes] = useState(new Set<string>());
   const [highlightLinks, setHighlightLinks] = useState(new Set<string>());
+  const animationRef = useRef<number>();
 
-  // Build initial graph data
+  // Build graph data
   useEffect(() => {
-    const nodes: Node[] = [];
-    const links: Link[] = [];
+    const nodeList: Node[] = [];
+    const linkList: Link[] = [];
 
     // Add current user
     const currentUser = allUsers.find(u => u.user_id === currentUserId);
     if (currentUser) {
-      nodes.push({
+      nodeList.push({
         id: currentUserId,
         name: `${currentUser.name} (You)`,
         color: '#9b87f5',
-        size: 12,
+        size: 16,
       });
     }
 
     // Add friends
     friends.forEach(friend => {
-      nodes.push({
+      nodeList.push({
         id: friend.user_id,
         name: friend.name,
         color: '#7E69AB',
-        size: 10,
+        size: 12,
       });
     });
 
-    // Add friends of friends (not already friends)
+    // Add friends of friends
     const friendIds = friends.map(f => f.user_id);
     const friendsOfFriends = new Set<string>();
 
@@ -91,30 +81,29 @@ export const GraphVisualization = ({
     friendsOfFriends.forEach(userId => {
       const user = allUsers.find(u => u.user_id === userId);
       if (user) {
-        nodes.push({
+        nodeList.push({
           id: userId,
           name: user.name,
           color: '#D6BCFA',
-          size: 8,
+          size: 10,
         });
       }
     });
 
-    // Add links (friendships)
+    // Add links
     friendships.forEach(fs => {
-      const sourceInGraph = nodes.find(n => n.id === fs.user_id);
-      const targetInGraph = nodes.find(n => n.id === fs.friend_id);
+      const sourceInGraph = nodeList.find(n => n.id === fs.user_id);
+      const targetInGraph = nodeList.find(n => n.id === fs.friend_id);
       if (sourceInGraph && targetInGraph) {
-        links.push({
+        linkList.push({
           source: fs.user_id,
           target: fs.friend_id,
-          color: 'rgba(126, 105, 171, 0.3)',
-          width: 1,
         });
       }
     });
 
-    setGraphData({ nodes, links });
+    setNodes(nodeList);
+    setLinks(linkList);
   }, [currentUserId, friends, allUsers, friendships]);
 
   // Animate BFS traversal
@@ -125,7 +114,6 @@ export const GraphVisualization = ({
       return;
     }
 
-    let animationTimeout: NodeJS.Timeout;
     const animate = async () => {
       const highlighted = new Set<string>();
       const highlightedLinks = new Set<string>();
@@ -137,7 +125,6 @@ export const GraphVisualization = ({
 
       // For each friend
       for (const friend of friends) {
-        // Highlight connection to friend
         highlightedLinks.add(`${currentUserId}-${friend.user_id}`);
         highlightedLinks.add(`${friend.user_id}-${currentUserId}`);
         highlighted.add(friend.user_id);
@@ -145,7 +132,6 @@ export const GraphVisualization = ({
         setHighlightLinks(new Set(highlightedLinks));
         await new Promise(resolve => setTimeout(resolve, 600));
 
-        // Find friend's friends
         const friendConnections = friendships.filter(
           fs => fs.user_id === friend.user_id || fs.friend_id === friend.user_id
         );
@@ -154,7 +140,6 @@ export const GraphVisualization = ({
           const potentialFriendId = conn.user_id === friend.user_id ? conn.friend_id : conn.user_id;
           
           if (potentialFriendId !== currentUserId && !friends.some(f => f.user_id === potentialFriendId)) {
-            // Highlight this potential connection
             highlightedLinks.add(`${friend.user_id}-${potentialFriendId}`);
             highlightedLinks.add(`${potentialFriendId}-${friend.user_id}`);
             highlighted.add(potentialFriendId);
@@ -169,79 +154,148 @@ export const GraphVisualization = ({
     };
 
     animate();
-
-    return () => {
-      if (animationTimeout) clearTimeout(animationTimeout);
-    };
   }, [isAnimating, currentUserId, friends, friendships]);
 
+  // D3 force simulation and canvas rendering
+  useEffect(() => {
+    if (!canvasRef.current || nodes.length === 0) return;
+
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    const width = canvas.width;
+    const height = canvas.height;
+
+    // Create simulation
+    const simulation = d3.forceSimulation(nodes as any)
+      .force('link', d3.forceLink(links).id((d: any) => d.id).distance(100))
+      .force('charge', d3.forceManyBody().strength(-300))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collision', d3.forceCollide().radius(30));
+
+    const render = () => {
+      context.clearRect(0, 0, width, height);
+      context.save();
+
+      // Draw links
+      context.strokeStyle = 'rgba(126, 105, 171, 0.3)';
+      context.lineWidth = 1;
+      links.forEach((link: any) => {
+        const linkKey1 = `${link.source.id}-${link.target.id}`;
+        const linkKey2 = `${link.target.id}-${link.source.id}`;
+        const isHighlighted = highlightLinks.has(linkKey1) || highlightLinks.has(linkKey2);
+
+        context.beginPath();
+        context.moveTo(link.source.x, link.source.y);
+        context.lineTo(link.target.x, link.target.y);
+        context.strokeStyle = isHighlighted ? '#F97316' : 'rgba(126, 105, 171, 0.3)';
+        context.lineWidth = isHighlighted ? 3 : 1;
+        
+        if (isHighlighted) {
+          context.shadowBlur = 15;
+          context.shadowColor = '#F97316';
+        } else {
+          context.shadowBlur = 0;
+        }
+        
+        context.stroke();
+      });
+
+      // Draw nodes
+      nodes.forEach((node: any) => {
+        const isHighlighted = highlightNodes.has(node.id);
+        
+        context.beginPath();
+        context.arc(node.x, node.y, node.size, 0, 2 * Math.PI);
+        context.fillStyle = isHighlighted ? '#F97316' : node.color;
+        
+        if (isHighlighted) {
+          context.shadowBlur = 20;
+          context.shadowColor = '#F97316';
+        } else {
+          context.shadowBlur = 0;
+        }
+        
+        context.fill();
+        
+        if (isHighlighted) {
+          context.strokeStyle = '#FFF';
+          context.lineWidth = 3;
+          context.stroke();
+        }
+
+        // Draw label
+        context.shadowBlur = 0;
+        context.fillStyle = isHighlighted ? '#FFF' : 'rgba(255, 255, 255, 0.9)';
+        context.font = '12px sans-serif';
+        context.textAlign = 'center';
+        context.textBaseline = 'top';
+        context.fillText(node.name, node.x, node.y + node.size + 5);
+      });
+
+      context.restore();
+    };
+
+    simulation.on('tick', () => {
+      render();
+    });
+
+    // Mouse drag interaction
+    let dragNode: Node | null = null;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+
+      dragNode = nodes.find((node: any) => {
+        const dx = x - node.x;
+        const dy = y - node.y;
+        return Math.sqrt(dx * dx + dy * dy) < node.size;
+      }) || null;
+
+      if (dragNode) {
+        simulation.alphaTarget(0.3).restart();
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (dragNode) {
+        const rect = canvas.getBoundingClientRect();
+        (dragNode as any).fx = e.clientX - rect.left;
+        (dragNode as any).fy = e.clientY - rect.top;
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (dragNode) {
+        (dragNode as any).fx = null;
+        (dragNode as any).fy = null;
+        dragNode = null;
+        simulation.alphaTarget(0);
+      }
+    };
+
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      simulation.stop();
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      canvas.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [nodes, links, highlightNodes, highlightLinks]);
+
   return (
-    <div className="w-full h-[600px] glass-card rounded-lg overflow-hidden border border-primary/20">
-      <ForceGraph2D
-        ref={graphRef}
-        graphData={graphData}
-        nodeLabel="name"
-        nodeAutoColorBy="color"
-        nodeCanvasObject={(node: any, ctx, globalScale) => {
-          const label = node.name;
-          const fontSize = 12 / globalScale;
-          ctx.font = `${fontSize}px Sans-Serif`;
-          
-          // Node circle
-          const isHighlighted = highlightNodes.has(node.id);
-          const radius = node.size || 5;
-          
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, radius, 0, 2 * Math.PI);
-          ctx.fillStyle = isHighlighted ? '#F97316' : node.color || '#999';
-          ctx.fill();
-          
-          if (isHighlighted) {
-            ctx.strokeStyle = '#FFF';
-            ctx.lineWidth = 2 / globalScale;
-            ctx.stroke();
-            
-            // Glow effect
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#F97316';
-          }
-          
-          // Label
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillStyle = isHighlighted ? '#FFF' : 'rgba(255, 255, 255, 0.8)';
-          ctx.fillText(label, node.x, node.y + radius + fontSize);
-        }}
-        linkCanvasObject={(link: any, ctx, globalScale) => {
-          const linkKey1 = `${link.source.id}-${link.target.id}`;
-          const linkKey2 = `${link.target.id}-${link.source.id}`;
-          const isHighlighted = highlightLinks.has(linkKey1) || highlightLinks.has(linkKey2);
-          
-          ctx.beginPath();
-          ctx.moveTo(link.source.x, link.source.y);
-          ctx.lineTo(link.target.x, link.target.y);
-          ctx.strokeStyle = isHighlighted ? '#F97316' : link.color || 'rgba(126, 105, 171, 0.3)';
-          ctx.lineWidth = isHighlighted ? 3 / globalScale : (link.width || 1) / globalScale;
-          
-          if (isHighlighted) {
-            ctx.shadowBlur = 10;
-            ctx.shadowColor = '#F97316';
-          }
-          
-          ctx.stroke();
-        }}
-        backgroundColor="#0a0a0a"
-        linkDirectionalParticles={2}
-        linkDirectionalParticleWidth={(link: any) => {
-          const linkKey1 = `${link.source.id}-${link.target.id}`;
-          const linkKey2 = `${link.target.id}-${link.source.id}`;
-          return highlightLinks.has(linkKey1) || highlightLinks.has(linkKey2) ? 4 : 0;
-        }}
-        linkDirectionalParticleColor={() => '#F97316'}
-        linkDirectionalParticleSpeed={0.005}
-        cooldownTicks={100}
-        warmupTicks={50}
-        d3VelocityDecay={0.3}
+    <div className="w-full h-[600px] glass-card rounded-lg overflow-hidden border border-primary/20 bg-[#0a0a0a]">
+      <canvas
+        ref={canvasRef}
+        width={1200}
+        height={600}
+        className="w-full h-full cursor-grab active:cursor-grabbing"
       />
     </div>
   );
