@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { GraphVisualization } from '@/components/GraphVisualization';
 import { LogOut, Users, UserPlus, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,6 +38,8 @@ const Dashboard = () => {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showTraversal, setShowTraversal] = useState(false);
   const [traversalLogs, setTraversalLogs] = useState<string[]>([]);
+  const [allFriendships, setAllFriendships] = useState<Friendship[]>([]);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -50,8 +53,22 @@ const Dashboard = () => {
       loadProfile(),
       loadFriends(),
       loadAllUsers(),
+      loadAllFriendships(),
     ]);
     setLoading(false);
+  };
+
+  const loadAllFriendships = async () => {
+    const { data, error } = await supabase
+      .from('friendships')
+      .select('*');
+
+    if (error) {
+      toast.error('Failed to load friendships');
+      return;
+    }
+
+    setAllFriendships(data || []);
   };
 
   const loadProfile = async () => {
@@ -139,12 +156,7 @@ const Dashboard = () => {
     const friendIds = friends.map(f => f.user_id);
     logs.push(`📊 Current friends: ${friends.length} total`);
     
-    // Get all friendships to calculate mutual friends
-    const { data: allFriendships } = await supabase
-      .from('friendships')
-      .select('*');
-
-    if (!allFriendships) return;
+    if (allFriendships.length === 0) return;
 
     const suggestionsMap = new Map<string, number>();
     logs.push(`\n🔍 Traversing friend network...`);
@@ -305,35 +317,60 @@ const Dashboard = () => {
                       people with mutual vibes
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">Show Traversal Steps</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowTraversal(!showTraversal)}
-                      className={showTraversal ? "bg-primary text-primary-foreground" : ""}
-                    >
-                      {showTraversal ? "ON" : "OFF"}
-                    </Button>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-muted-foreground">Show Graph</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const newState = !showTraversal;
+                          setShowTraversal(newState);
+                          if (newState) {
+                            setIsAnimating(true);
+                            setTimeout(() => setIsAnimating(false), 10000);
+                          } else {
+                            setIsAnimating(false);
+                          }
+                        }}
+                        className={showTraversal ? "bg-primary text-primary-foreground" : ""}
+                      >
+                        {showTraversal ? "ON" : "OFF"}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </CardHeader>
               
-              {showTraversal && traversalLogs.length > 0 && (
-                <CardContent className="mb-4">
-                  <div className="glass-card border border-primary/20 rounded-lg p-4 max-h-80 overflow-y-auto">
-                    <div className="font-mono text-sm space-y-1">
-                      {traversalLogs.map((log, index) => (
-                        <div 
-                          key={index} 
-                          className={`animate-fade-in ${log.includes('✨') ? 'text-primary' : log.includes('✅') ? 'text-success' : 'text-foreground/80'}`}
-                          style={{ animationDelay: `${index * 0.05}s` }}
-                        >
-                          {log}
-                        </div>
-                      ))}
-                    </div>
+              {showTraversal && (
+                <CardContent className="mb-4 space-y-4">
+                  <div className="animate-fade-in">
+                    <h3 className="text-sm font-semibold mb-2 text-primary">Live Graph Traversal</h3>
+                    <GraphVisualization
+                      currentUserId={user?.id || ''}
+                      friends={friends}
+                      allUsers={allUsers}
+                      friendships={allFriendships}
+                      isAnimating={isAnimating}
+                    />
                   </div>
+                  
+                  {traversalLogs.length > 0 && (
+                    <div className="glass-card border border-primary/20 rounded-lg p-4 max-h-60 overflow-y-auto">
+                      <h3 className="text-sm font-semibold mb-2 text-muted-foreground">Traversal Log</h3>
+                      <div className="font-mono text-xs space-y-1">
+                        {traversalLogs.map((log, index) => (
+                          <div 
+                            key={index} 
+                            className={`animate-fade-in ${log.includes('✨') ? 'text-primary' : log.includes('✅') ? 'text-success' : 'text-foreground/80'}`}
+                            style={{ animationDelay: `${index * 0.05}s` }}
+                          >
+                            {log}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               )}
               
