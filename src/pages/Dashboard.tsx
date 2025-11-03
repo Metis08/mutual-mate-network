@@ -35,6 +35,8 @@ const Dashboard = () => {
   const [allUsers, setAllUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showTraversal, setShowTraversal] = useState(false);
+  const [traversalLogs, setTraversalLogs] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -131,7 +133,11 @@ const Dashboard = () => {
   const calculateSuggestions = async () => {
     if (!user) return;
 
+    const logs: string[] = [];
+    logs.push(`🚀 Starting BFS traversal for user: ${profile?.name || user.id}`);
+    
     const friendIds = friends.map(f => f.user_id);
+    logs.push(`📊 Current friends: ${friends.length} total`);
     
     // Get all friendships to calculate mutual friends
     const { data: allFriendships } = await supabase
@@ -141,25 +147,34 @@ const Dashboard = () => {
     if (!allFriendships) return;
 
     const suggestionsMap = new Map<string, number>();
+    logs.push(`\n🔍 Traversing friend network...`);
 
-    // For each of my friends, find their friends
-    friendIds.forEach(friendId => {
+    // For each of my friends, find their friends (BFS Level 1)
+    friendIds.forEach((friendId, index) => {
+      const friend = friends.find(f => f.user_id === friendId);
+      logs.push(`\n👤 Visiting node: ${friend?.name || friendId} (Friend ${index + 1}/${friendIds.length})`);
+      
       const friendOfFriendships = allFriendships.filter(
         f => f.user_id === friendId || f.friend_id === friendId
       );
 
+      logs.push(`  → Checking ${friendOfFriendships.length} connections...`);
+
       friendOfFriendships.forEach(f => {
         const potentialFriendId = f.user_id === friendId ? f.friend_id : f.user_id;
+        const potentialFriend = allUsers.find(u => u.user_id === potentialFriendId);
         
         // Don't suggest yourself or existing friends
         if (potentialFriendId !== user.id && !friendIds.includes(potentialFriendId)) {
-          suggestionsMap.set(
-            potentialFriendId,
-            (suggestionsMap.get(potentialFriendId) || 0) + 1
-          );
+          const currentCount = suggestionsMap.get(potentialFriendId) || 0;
+          suggestionsMap.set(potentialFriendId, currentCount + 1);
+          logs.push(`  ✨ Found mutual connection: ${potentialFriend?.name || potentialFriendId} (${currentCount + 1} mutual)`);
         }
       });
     });
+
+    logs.push(`\n✅ Traversal complete!`);
+    logs.push(`📈 Found ${suggestionsMap.size} potential friends`);
 
     // Convert to array and sort by mutual friends
     const suggestionsWithMutual: FriendSuggestion[] = Array.from(suggestionsMap.entries())
@@ -170,7 +185,13 @@ const Dashboard = () => {
       .filter((s): s is FriendSuggestion => s !== null)
       .sort((a, b) => b.mutualFriends - a.mutualFriends);
 
+    logs.push(`\n🎯 Top suggestions ranked by mutual connections:`);
+    suggestionsWithMutual.slice(0, 5).forEach((s, i) => {
+      logs.push(`  ${i + 1}. ${s.name} - ${s.mutualFriends} mutual friend${s.mutualFriends > 1 ? 's' : ''}`);
+    });
+
     setSuggestions(suggestionsWithMutual);
+    setTraversalLogs(logs);
   };
 
   const addFriend = async (friendId: string) => {
@@ -277,11 +298,45 @@ const Dashboard = () => {
           <TabsContent value="suggestions" className="space-y-4">
             <Card className="glass-card shadow-card">
               <CardHeader>
-                <CardTitle className="text-xl">✨ suggested connections</CardTitle>
-                <CardDescription>
-                  people with mutual vibes
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl">✨ suggested connections</CardTitle>
+                    <CardDescription>
+                      people with mutual vibes
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Show Traversal Steps</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowTraversal(!showTraversal)}
+                      className={showTraversal ? "bg-primary text-primary-foreground" : ""}
+                    >
+                      {showTraversal ? "ON" : "OFF"}
+                    </Button>
+                  </div>
+                </div>
               </CardHeader>
+              
+              {showTraversal && traversalLogs.length > 0 && (
+                <CardContent className="mb-4">
+                  <div className="glass-card border border-primary/20 rounded-lg p-4 max-h-80 overflow-y-auto">
+                    <div className="font-mono text-sm space-y-1">
+                      {traversalLogs.map((log, index) => (
+                        <div 
+                          key={index} 
+                          className={`animate-fade-in ${log.includes('✨') ? 'text-primary' : log.includes('✅') ? 'text-success' : 'text-foreground/80'}`}
+                          style={{ animationDelay: `${index * 0.05}s` }}
+                        >
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+              
               <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {suggestions.length === 0 ? (
                   <p className="text-muted-foreground col-span-full text-center py-12">
