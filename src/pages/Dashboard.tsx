@@ -335,7 +335,7 @@ const Dashboard = () => {
                         }}
                         className={showTraversal ? "bg-primary text-primary-foreground" : ""}
                       >
-                        {showTraversal ? "ON" : "OFF"}
+                        {showTraversal ? "OFF" : "ON"}
                       </Button>
                     </div>
                   </div>
