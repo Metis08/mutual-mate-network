@@ -46,17 +46,14 @@ export const GraphVisualization = ({
     const linkList: Link[] = [];
     const friendIds = friends.map(f => f.user_id);
 
-    // Add current user
-    const currentUser = allUsers.find(u => u.user_id === currentUserId);
-    if (currentUser) {
-      nodeList.push({
-        id: currentUserId,
-        name: `${currentUser.name} (You)`,
-        color: '#9b87f5',
-        size: 18,
-        type: 'current',
-      });
-    }
+    // Add current user (always include, even if not in allUsers)
+    nodeList.push({
+      id: currentUserId,
+      name: 'You',
+      color: '#9b87f5',
+      size: 18,
+      type: 'current',
+    });
 
     // Find friends of friends (suggestions)
     const friendsOfFriends = new Set<string>();
