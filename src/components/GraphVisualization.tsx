@@ -58,24 +58,31 @@ export const GraphVisualization = ({
       });
     }
 
-    // Identify mutual friends (friends who are friends with each other)
-    const mutualFriendIds = new Set<string>();
-    friendIds.forEach(friendId1 => {
-      friendIds.forEach(friendId2 => {
-        if (friendId1 !== friendId2) {
-          const areFriends = friendships.some(
-            fs => (fs.user_id === friendId1 && fs.friend_id === friendId2) ||
-                  (fs.user_id === friendId2 && fs.friend_id === friendId1)
-          );
-          if (areFriends) {
-            mutualFriendIds.add(friendId1);
-            mutualFriendIds.add(friendId2);
-          }
-        }
-      });
+    // Find friends of friends (suggestions)
+    const friendsOfFriends = new Set<string>();
+    friendships.forEach(fs => {
+      if (friendIds.includes(fs.user_id) && fs.friend_id !== currentUserId && !friendIds.includes(fs.friend_id)) {
+        friendsOfFriends.add(fs.friend_id);
+      }
+      if (friendIds.includes(fs.friend_id) && fs.user_id !== currentUserId && !friendIds.includes(fs.user_id)) {
+        friendsOfFriends.add(fs.user_id);
+      }
     });
 
-    // Add friends
+    // Identify mutual friends (friends who connect to suggestions)
+    const mutualFriendIds = new Set<string>();
+    friendIds.forEach(friendId => {
+      const connectsToSuggestion = friendships.some(fs => {
+        const otherUser = fs.user_id === friendId ? fs.friend_id : fs.user_id;
+        return (fs.user_id === friendId || fs.friend_id === friendId) && 
+               friendsOfFriends.has(otherUser);
+      });
+      if (connectsToSuggestion) {
+        mutualFriendIds.add(friendId);
+      }
+    });
+
+    // Add friends with mutual highlighting
     friends.forEach(friend => {
       const isMutual = mutualFriendIds.has(friend.user_id);
       nodeList.push({
@@ -87,18 +94,7 @@ export const GraphVisualization = ({
       });
     });
 
-    // Add friends of friends (suggestions)
-    const friendsOfFriends = new Set<string>();
-
-    friendships.forEach(fs => {
-      if (friendIds.includes(fs.user_id) && fs.friend_id !== currentUserId && !friendIds.includes(fs.friend_id)) {
-        friendsOfFriends.add(fs.friend_id);
-      }
-      if (friendIds.includes(fs.friend_id) && fs.user_id !== currentUserId && !friendIds.includes(fs.user_id)) {
-        friendsOfFriends.add(fs.user_id);
-      }
-    });
-
+    // Add suggestions
     friendsOfFriends.forEach(userId => {
       const user = allUsers.find(u => u.user_id === userId);
       if (user) {
@@ -112,7 +108,7 @@ export const GraphVisualization = ({
       }
     });
 
-    // Add all friendship links (edges between nodes)
+    // Add all friendship links (edges between nodes in graph)
     friendships.forEach(fs => {
       const sourceInGraph = nodeList.find(n => n.id === fs.user_id);
       const targetInGraph = nodeList.find(n => n.id === fs.friend_id);
@@ -123,6 +119,10 @@ export const GraphVisualization = ({
         });
       }
     });
+
+    console.log('Graph nodes:', nodeList.length, 'Graph edges:', linkList.length);
+    console.log('Mutual friends:', Array.from(mutualFriendIds));
+    console.log('Links:', linkList);
 
     setNodes(nodeList);
     setLinks(linkList);
@@ -209,7 +209,7 @@ export const GraphVisualization = ({
         node.y = Math.max(margin, Math.min(height - margin, node.y));
       });
 
-      // Draw links (edges) with better visibility
+      // Draw links (edges) with enhanced visibility
       links.forEach((link: any) => {
         const linkKey1 = `${link.source.id}-${link.target.id}`;
         const linkKey2 = `${link.target.id}-${link.source.id}`;
@@ -220,17 +220,21 @@ export const GraphVisualization = ({
         context.lineTo(link.target.x, link.target.y);
         
         if (isHighlighted) {
+          // Highlighted edges during animation
           context.strokeStyle = '#F97316';
-          context.lineWidth = 4;
-          context.shadowBlur = 20;
+          context.lineWidth = 5;
+          context.shadowBlur = 25;
           context.shadowColor = '#F97316';
         } else {
-          context.strokeStyle = 'rgba(155, 135, 245, 0.4)';
-          context.lineWidth = 2;
-          context.shadowBlur = 0;
+          // Normal edges - make them clearly visible
+          context.strokeStyle = 'rgba(155, 135, 245, 0.6)';
+          context.lineWidth = 3;
+          context.shadowBlur = 8;
+          context.shadowColor = 'rgba(155, 135, 245, 0.4)';
         }
         
         context.stroke();
+        context.shadowBlur = 0;
       });
 
       // Draw nodes with labels and type indicators
