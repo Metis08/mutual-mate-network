@@ -156,39 +156,55 @@ const Dashboard = () => {
     const friendIds = friends.map(f => f.user_id);
     logs.push(`📊 Current friends: ${friends.length} total`);
     
-    if (allFriendships.length === 0) return;
-
     const suggestionsMap = new Map<string, number>();
-    logs.push(`\n🔍 Traversing friend network...`);
 
-    // For each of my friends, find their friends (BFS Level 1)
-    friendIds.forEach((friendId, index) => {
-      const friend = friends.find(f => f.user_id === friendId);
-      logs.push(`\n👤 Visiting node: ${friend?.name || friendId} (Friend ${index + 1}/${friendIds.length})`);
-      
-      const friendOfFriendships = allFriendships.filter(
-        f => f.user_id === friendId || f.friend_id === friendId
-      );
+    if (friends.length === 0) {
+      // If no friends, suggest all available users
+      logs.push(`\n💡 No friends yet - showing all available users as suggestions`);
+      allUsers.forEach(u => {
+        suggestionsMap.set(u.user_id, 0);
+        logs.push(`  ✨ Suggesting: ${u.name}`);
+      });
+    } else {
+      logs.push(`\n🔍 Traversing friend network...`);
 
-      logs.push(`  → Checking ${friendOfFriendships.length} connections...`);
-
-      friendOfFriendships.forEach(f => {
-        const potentialFriendId = f.user_id === friendId ? f.friend_id : f.user_id;
-        const potentialFriend = allUsers.find(u => u.user_id === potentialFriendId);
+      // For each of my friends, find their friends (BFS Level 1)
+      friendIds.forEach((friendId, index) => {
+        const friend = friends.find(f => f.user_id === friendId);
+        logs.push(`\n👤 Visiting node: ${friend?.name || friendId} (Friend ${index + 1}/${friendIds.length})`);
         
-        // Don't suggest yourself or existing friends
-        if (potentialFriendId !== user.id && !friendIds.includes(potentialFriendId)) {
-          const currentCount = suggestionsMap.get(potentialFriendId) || 0;
-          suggestionsMap.set(potentialFriendId, currentCount + 1);
-          logs.push(`  ✨ Found mutual connection: ${potentialFriend?.name || potentialFriendId} (${currentCount + 1} mutual)`);
+        const friendOfFriendships = allFriendships.filter(
+          f => f.user_id === friendId || f.friend_id === friendId
+        );
+
+        logs.push(`  → Checking ${friendOfFriendships.length} connections...`);
+
+        friendOfFriendships.forEach(f => {
+          const potentialFriendId = f.user_id === friendId ? f.friend_id : f.user_id;
+          const potentialFriend = allUsers.find(u => u.user_id === potentialFriendId);
+          
+          // Don't suggest yourself or existing friends
+          if (potentialFriendId !== user.id && !friendIds.includes(potentialFriendId)) {
+            const currentCount = suggestionsMap.get(potentialFriendId) || 0;
+            suggestionsMap.set(potentialFriendId, currentCount + 1);
+            logs.push(`  ✨ Found mutual connection: ${potentialFriend?.name || potentialFriendId} (${currentCount + 1} mutual)`);
+          }
+        });
+      });
+
+      // Add remaining users who aren't friends as 0-mutual suggestions
+      allUsers.forEach(u => {
+        if (!friendIds.includes(u.user_id) && !suggestionsMap.has(u.user_id)) {
+          suggestionsMap.set(u.user_id, 0);
+          logs.push(`  💫 Also suggesting: ${u.name} (no mutual friends)`);
         }
       });
-    });
+    }
 
     logs.push(`\n✅ Traversal complete!`);
     logs.push(`📈 Found ${suggestionsMap.size} potential friends`);
 
-    // Convert to array and sort by mutual friends
+    // Convert to array and sort by mutual friends (highest first)
     const suggestionsWithMutual: FriendSuggestion[] = Array.from(suggestionsMap.entries())
       .map(([userId, mutualCount]) => {
         const userProfile = allUsers.find(u => u.user_id === userId);
@@ -198,8 +214,8 @@ const Dashboard = () => {
       .sort((a, b) => b.mutualFriends - a.mutualFriends);
 
     logs.push(`\n🎯 Top suggestions ranked by mutual connections:`);
-    suggestionsWithMutual.slice(0, 5).forEach((s, i) => {
-      logs.push(`  ${i + 1}. ${s.name} - ${s.mutualFriends} mutual friend${s.mutualFriends > 1 ? 's' : ''}`);
+    suggestionsWithMutual.slice(0, 10).forEach((s, i) => {
+      logs.push(`  ${i + 1}. ${s.name} - ${s.mutualFriends} mutual friend${s.mutualFriends !== 1 ? 's' : ''}`);
     });
 
     setSuggestions(suggestionsWithMutual);
