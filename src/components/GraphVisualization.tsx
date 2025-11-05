@@ -10,6 +10,7 @@ interface Node {
   vy?: number;
   color: string;
   size: number;
+  type: 'current' | 'friend' | 'mutual' | 'suggestion';
 }
 
 interface Link {
@@ -43,6 +44,7 @@ export const GraphVisualization = ({
   useEffect(() => {
     const nodeList: Node[] = [];
     const linkList: Link[] = [];
+    const friendIds = friends.map(f => f.user_id);
 
     // Add current user
     const currentUser = allUsers.find(u => u.user_id === currentUserId);
@@ -51,22 +53,41 @@ export const GraphVisualization = ({
         id: currentUserId,
         name: `${currentUser.name} (You)`,
         color: '#9b87f5',
-        size: 16,
+        size: 18,
+        type: 'current',
       });
     }
 
-    // Add friends
-    friends.forEach(friend => {
-      nodeList.push({
-        id: friend.user_id,
-        name: friend.name,
-        color: '#7E69AB',
-        size: 12,
+    // Identify mutual friends (friends who are friends with each other)
+    const mutualFriendIds = new Set<string>();
+    friendIds.forEach(friendId1 => {
+      friendIds.forEach(friendId2 => {
+        if (friendId1 !== friendId2) {
+          const areFriends = friendships.some(
+            fs => (fs.user_id === friendId1 && fs.friend_id === friendId2) ||
+                  (fs.user_id === friendId2 && fs.friend_id === friendId1)
+          );
+          if (areFriends) {
+            mutualFriendIds.add(friendId1);
+            mutualFriendIds.add(friendId2);
+          }
+        }
       });
     });
 
-    // Add friends of friends
-    const friendIds = friends.map(f => f.user_id);
+    // Add friends
+    friends.forEach(friend => {
+      const isMutual = mutualFriendIds.has(friend.user_id);
+      nodeList.push({
+        id: friend.user_id,
+        name: friend.name,
+        color: isMutual ? '#F97316' : '#7E69AB',
+        size: isMutual ? 14 : 12,
+        type: isMutual ? 'mutual' : 'friend',
+      });
+    });
+
+    // Add friends of friends (suggestions)
     const friendsOfFriends = new Set<string>();
 
     friendships.forEach(fs => {
@@ -86,11 +107,12 @@ export const GraphVisualization = ({
           name: user.name,
           color: '#D6BCFA',
           size: 10,
+          type: 'suggestion',
         });
       }
     });
 
-    // Add links
+    // Add all friendship links (edges between nodes)
     friendships.forEach(fs => {
       const sourceInGraph = nodeList.find(n => n.id === fs.user_id);
       const targetInGraph = nodeList.find(n => n.id === fs.friend_id);
@@ -167,20 +189,27 @@ export const GraphVisualization = ({
     const width = canvas.width;
     const height = canvas.height;
 
-    // Create simulation
+    // Create simulation with boundary constraints
     const simulation = d3.forceSimulation(nodes as any)
-      .force('link', d3.forceLink(links).id((d: any) => d.id).distance(100))
-      .force('charge', d3.forceManyBody().strength(-300))
+      .force('link', d3.forceLink(links).id((d: any) => d.id).distance(120).strength(0.5))
+      .force('charge', d3.forceManyBody().strength(-400))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collision', d3.forceCollide().radius(30));
+      .force('collision', d3.forceCollide().radius(35))
+      .force('x', d3.forceX(width / 2).strength(0.1))
+      .force('y', d3.forceY(height / 2).strength(0.1));
 
     const render = () => {
       context.clearRect(0, 0, width, height);
       context.save();
 
-      // Draw links
-      context.strokeStyle = 'rgba(126, 105, 171, 0.3)';
-      context.lineWidth = 1;
+      // Constrain nodes within bounds
+      nodes.forEach((node: any) => {
+        const margin = 50;
+        node.x = Math.max(margin, Math.min(width - margin, node.x));
+        node.y = Math.max(margin, Math.min(height - margin, node.y));
+      });
+
+      // Draw links (edges) with better visibility
       links.forEach((link: any) => {
         const linkKey1 = `${link.source.id}-${link.target.id}`;
         const linkKey2 = `${link.target.id}-${link.source.id}`;
@@ -189,49 +218,80 @@ export const GraphVisualization = ({
         context.beginPath();
         context.moveTo(link.source.x, link.source.y);
         context.lineTo(link.target.x, link.target.y);
-        context.strokeStyle = isHighlighted ? '#F97316' : 'rgba(126, 105, 171, 0.3)';
-        context.lineWidth = isHighlighted ? 3 : 1;
         
         if (isHighlighted) {
-          context.shadowBlur = 15;
+          context.strokeStyle = '#F97316';
+          context.lineWidth = 4;
+          context.shadowBlur = 20;
           context.shadowColor = '#F97316';
         } else {
+          context.strokeStyle = 'rgba(155, 135, 245, 0.4)';
+          context.lineWidth = 2;
           context.shadowBlur = 0;
         }
         
         context.stroke();
       });
 
-      // Draw nodes
+      // Draw nodes with labels and type indicators
       nodes.forEach((node: any) => {
         const isHighlighted = highlightNodes.has(node.id);
         
+        // Outer glow for highlighted nodes
+        if (isHighlighted) {
+          context.beginPath();
+          context.arc(node.x, node.y, node.size + 6, 0, 2 * Math.PI);
+          context.fillStyle = 'rgba(249, 115, 22, 0.3)';
+          context.fill();
+        }
+        
+        // Main node
         context.beginPath();
         context.arc(node.x, node.y, node.size, 0, 2 * Math.PI);
         context.fillStyle = isHighlighted ? '#F97316' : node.color;
         
         if (isHighlighted) {
-          context.shadowBlur = 20;
+          context.shadowBlur = 25;
           context.shadowColor = '#F97316';
         } else {
-          context.shadowBlur = 0;
+          context.shadowBlur = 5;
+          context.shadowColor = node.color;
         }
         
         context.fill();
         
-        if (isHighlighted) {
-          context.strokeStyle = '#FFF';
-          context.lineWidth = 3;
-          context.stroke();
+        // Node border
+        context.strokeStyle = isHighlighted ? '#FFF' : 'rgba(255, 255, 255, 0.5)';
+        context.lineWidth = isHighlighted ? 3 : 2;
+        context.stroke();
+
+        // Draw type indicator for mutual friends
+        if (node.type === 'mutual' && !isHighlighted) {
+          context.shadowBlur = 0;
+          context.fillStyle = '#F97316';
+          context.beginPath();
+          context.arc(node.x + node.size * 0.6, node.y - node.size * 0.6, 4, 0, 2 * Math.PI);
+          context.fill();
         }
 
         // Draw label
         context.shadowBlur = 0;
-        context.fillStyle = isHighlighted ? '#FFF' : 'rgba(255, 255, 255, 0.9)';
-        context.font = '12px sans-serif';
+        context.fillStyle = isHighlighted ? '#FFF' : 'rgba(255, 255, 255, 0.95)';
+        context.font = isHighlighted ? 'bold 13px sans-serif' : '12px sans-serif';
         context.textAlign = 'center';
         context.textBaseline = 'top';
-        context.fillText(node.name, node.x, node.y + node.size + 5);
+        context.fillText(node.name, node.x, node.y + node.size + 8);
+        
+        // Draw type label
+        if (node.type === 'mutual') {
+          context.fillStyle = 'rgba(249, 115, 22, 0.8)';
+          context.font = '10px sans-serif';
+          context.fillText('mutual', node.x, node.y + node.size + 23);
+        } else if (node.type === 'suggestion') {
+          context.fillStyle = 'rgba(214, 188, 250, 0.8)';
+          context.font = '10px sans-serif';
+          context.fillText('suggested', node.x, node.y + node.size + 23);
+        }
       });
 
       context.restore();
@@ -290,13 +350,33 @@ export const GraphVisualization = ({
   }, [nodes, links, highlightNodes, highlightLinks]);
 
   return (
-    <div className="w-full h-[600px] glass-card rounded-lg overflow-hidden border border-primary/20 bg-[#0a0a0a]">
-      <canvas
-        ref={canvasRef}
-        width={1200}
-        height={600}
-        className="w-full h-full cursor-grab active:cursor-grabbing"
-      />
+    <div className="w-full space-y-4">
+      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#9b87f5]"></div>
+          <span>You</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#7E69AB]"></div>
+          <span>Friends</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#F97316]"></div>
+          <span>Mutual Friends</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-4 rounded-full bg-[#D6BCFA]"></div>
+          <span>Suggested</span>
+        </div>
+      </div>
+      <div className="w-full h-[600px] glass-card rounded-lg overflow-hidden border border-primary/20 bg-[#0a0a0a]">
+        <canvas
+          ref={canvasRef}
+          width={1200}
+          height={600}
+          className="w-full h-full cursor-grab active:cursor-grabbing"
+        />
+      </div>
     </div>
   );
 };
