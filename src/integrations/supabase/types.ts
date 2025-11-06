@@ -85,7 +85,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_network_friendships: {
+        Args: { p_user_id: string }
+        Returns: {
+          created_at: string
+          friend_id: string
+          id: string
+          user_id: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "friendships"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
     }
     Enums: {
       [_ in never]: never

@@ -46,7 +46,7 @@ export const GraphVisualization = ({
     const linkList: Link[] = [];
     const friendIds = friends.map(f => f.user_id);
 
-    // Add current user (always include, even if not in allUsers)
+    // Add current user
     nodeList.push({
       id: currentUserId,
       name: 'You',
@@ -55,31 +55,43 @@ export const GraphVisualization = ({
       type: 'current',
     });
 
-    // Find friends of friends (suggestions)
-    const friendsOfFriends = new Set<string>();
+    // Build node-to-connections map to identify mutual friends
+    const connectionMap = new Map<string, Set<string>>();
     friendships.forEach(fs => {
-      if (friendIds.includes(fs.user_id) && fs.friend_id !== currentUserId && !friendIds.includes(fs.friend_id)) {
-        friendsOfFriends.add(fs.friend_id);
+      if (!connectionMap.has(fs.user_id)) {
+        connectionMap.set(fs.user_id, new Set());
       }
-      if (friendIds.includes(fs.friend_id) && fs.user_id !== currentUserId && !friendIds.includes(fs.user_id)) {
-        friendsOfFriends.add(fs.user_id);
+      if (!connectionMap.has(fs.friend_id)) {
+        connectionMap.set(fs.friend_id, new Set());
       }
+      connectionMap.get(fs.user_id)!.add(fs.friend_id);
+      connectionMap.get(fs.friend_id)!.add(fs.user_id);
     });
 
-    // Identify mutual friends (friends who connect to suggestions)
+    // Identify suggestions (friends of friends not yet friends)
+    const friendsOfFriends = new Set<string>();
+    friendIds.forEach(friendId => {
+      const theirFriends = connectionMap.get(friendId) || new Set();
+      theirFriends.forEach(fofId => {
+        if (fofId !== currentUserId && !friendIds.includes(fofId)) {
+          friendsOfFriends.add(fofId);
+        }
+      });
+    });
+
+    // Identify mutual friends: friends who bridge to suggestions
     const mutualFriendIds = new Set<string>();
     friendIds.forEach(friendId => {
-      const connectsToSuggestion = friendships.some(fs => {
-        const otherUser = fs.user_id === friendId ? fs.friend_id : fs.user_id;
-        return (fs.user_id === friendId || fs.friend_id === friendId) && 
-               friendsOfFriends.has(otherUser);
-      });
-      if (connectsToSuggestion) {
-        mutualFriendIds.add(friendId);
+      const theirConnections = connectionMap.get(friendId) || new Set();
+      for (const connId of theirConnections) {
+        if (friendsOfFriends.has(connId)) {
+          mutualFriendIds.add(friendId);
+          break;
+        }
       }
     });
 
-    // Add friends with mutual highlighting
+    // Add friends to graph
     friends.forEach(friend => {
       const isMutual = mutualFriendIds.has(friend.user_id);
       nodeList.push({
@@ -91,7 +103,7 @@ export const GraphVisualization = ({
       });
     });
 
-    // Add suggestions
+    // Add suggestions to graph
     friendsOfFriends.forEach(userId => {
       const user = allUsers.find(u => u.user_id === userId);
       if (user) {
@@ -105,7 +117,7 @@ export const GraphVisualization = ({
       }
     });
 
-    // Add all friendship links (edges between nodes in graph)
+    // Add ALL edges where BOTH nodes exist in graph
     friendships.forEach(fs => {
       const sourceInGraph = nodeList.find(n => n.id === fs.user_id);
       const targetInGraph = nodeList.find(n => n.id === fs.friend_id);
@@ -118,8 +130,9 @@ export const GraphVisualization = ({
     });
 
     console.log('Graph nodes:', nodeList.length, 'Graph edges:', linkList.length);
-    console.log('Mutual friends:', Array.from(mutualFriendIds));
-    console.log('Links:', linkList);
+    console.log('Mutual friends (orange):', Array.from(mutualFriendIds));
+    console.log('Suggestions:', Array.from(friendsOfFriends));
+    console.log('Total links:', linkList.length);
 
     setNodes(nodeList);
     setLinks(linkList);

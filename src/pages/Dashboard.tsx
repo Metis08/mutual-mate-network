@@ -59,12 +59,16 @@ const Dashboard = () => {
   };
 
   const loadAllFriendships = async () => {
-    const { data, error } = await supabase
-      .from('friendships')
-      .select('*');
+    if (!user) return;
+
+    // Use RPC to fetch network friendships (all edges visible to current user)
+    const { data, error } = await supabase.rpc('get_network_friendships', { 
+      p_user_id: user.id 
+    });
 
     if (error) {
-      toast.error('Failed to load friendships');
+      console.error('Failed to load network friendships:', error);
+      toast.error('Failed to load network connections');
       return;
     }
 
